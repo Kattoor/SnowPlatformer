@@ -1,19 +1,28 @@
+package player;
+
+import collision.Collidable;
+import collision.CollisionCheckType;
+import collision.CollisionHit;
+import collision.CollisionSide;
+import engine.Drawable;
+import engine.Updatable;
+import objects.GameObject;
+import objects.Snowball;
+
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class PlayerController implements Updatable, Drawable {
 
-    private final List<Collidable> collisions;
+    private final List<Collidable> collidables;
     private Direction direction = Direction.RIGHT;
-    private int horizontalVelocity = 0;
-    private double verticalVelocity = 0;
+    private int verticalVelocity = 0;
     private final int speed = 5;
     private final int amountOfFrames = 5;
     private int currentFrameIndex;
@@ -25,6 +34,7 @@ public class PlayerController implements Updatable, Drawable {
     private int width = 42;
     private List<Snowball> snowballs = new CopyOnWriteArrayList<>();
     private boolean mousePressed;
+    private final float verticalAcceleration = 9.8f / 5;
 
 
     private KeyAdapter keyListener;
@@ -40,8 +50,8 @@ public class PlayerController implements Updatable, Drawable {
             ImageIO.read(Files.newInputStream(Paths.get("snowman", "f5.png")))
     };
 
-    PlayerController(List<Collidable> collisions) throws IOException {
-        this.collisions = collisions;
+    public PlayerController(List<Collidable> collidables) throws IOException {
+        this.collidables = collidables;
         keyListener = new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
@@ -99,76 +109,102 @@ public class PlayerController implements Updatable, Drawable {
         };
     }
 
+    private void updateHorizontalMovement() {
+        if (goingLeft || goingRight) {
+
+            int velocity = goingLeft ? -speed : speed;
+            int nextX = x + velocity;
+
+            updateFrameAnimation();
+
+            //boolean collides = collidables.stream().anyMatch(collidable -> collidable.collidesWith(nextX, y, width, height - 1, CollisionCheckType.HORIZONTAL, velocity, 0) != null);
+            boolean collided = false;
+            for (Collidable collidable : collidables) {
+                CollisionHit collisionHit = collidable.collidesWith(nextX, y, width, height - 1, CollisionCheckType.HORIZONTAL);
+
+                if (collisionHit != null) {
+                    CollisionSide collisionSide = collisionHit.getCollisionSide();
+                    GameObject collisionObject = collisionHit.getGameObject();
+
+                    collided = true;
+                    if (collisionSide == CollisionSide.LEFT ) {
+                        x = collisionObject.getX() - width;
+                    } else if (collisionSide == CollisionSide.RIGHT) {
+                        x = collisionObject.getX() + collisionObject.getWidth();
+                    }
+
+                    break;
+                }
+            }
+
+            if (!collided) {
+                x = nextX;
+            }
+        }
+    }
+
+    private void updateVerticalMovement() {
+        verticalVelocity += verticalAcceleration;
+
+        int nextY = y + verticalVelocity;
+
+        boolean collided = false;
+
+        for (Collidable collidable : collidables) {
+            CollisionHit collisionHit = collidable.collidesWith(x, nextY, width, height, CollisionCheckType.VERTICAL);
+            if (collisionHit != null) {
+                collided = true;
+
+                CollisionSide collisionSide = collisionHit.getCollisionSide();
+                GameObject collisionObject = collisionHit.getGameObject();
+
+                if (collisionSide.isBottom()) {
+                    verticalVelocity = 10;
+                    y = collisionObject.getY() + collisionObject.getHeight() + 1;
+                } else if (collisionSide.isTop()) {
+                    jumpCount = 0;
+                    verticalVelocity = 0;
+                    y = collisionObject.getY() - height;
+                }
+
+                break;
+            }
+        }
+
+        if (!collided) {
+            y = nextY;
+        }
+
+        /*
+
+        Optional<CollisionHit> collision = collidables.stream()
+                .map(collidable -> collidable.collidesWith(x, nextY, width, height, CollisionCheckType.BOTH))
+                .filter(Objects::nonNull)
+                .findFirst();
+
+        collision.ifPresent(collisionHit -> {
+            CollisionSide collisionSide = collisionHit.getCollisionSide();
+            HasPositionAndSize collisionObject = collisionHit.getObject();
+
+            if (collisionSide.isBottom()) {
+                verticalVelocity = -verticalVelocity;
+                y = collisionObject.getY() + collisionObject.getHeight();
+            } else if (collisionSide.isTop()) {
+                jumpCount = 0;
+                verticalVelocity = 0;
+                y = collisionObject.getY() - height;
+            }
+        });
+
+        if (!collision.isPresent()) {
+            y = nextY;
+        }*/
+    }
+
     @Override
     public void update() {
-        if (goingLeft || goingRight) {
-            updateFrameAnimation();
-        }
-
-        if (goingLeft) {
-            boolean collides = false;
-            for (Collidable collision : collisions) {
-                CollisionHit collisionHit = collision.collidesWith(x - speed, y , width, height - 1);
-                if (collisionHit != null) {
-                    collides = true;
-                    break;
-                }
-            }
-
-            if (!collides) {
-                horizontalVelocity = -speed;
-            } else {
-                horizontalVelocity = 0;
-            }
-        } else if (goingRight) {
-            boolean collides = false;
-            for (Collidable collision : collisions) {
-                CollisionHit collisionHit = collision.collidesWith(x + speed, y, width, height - 1);
-                if (collisionHit != null) {
-                    collides = true;
-                    break;
-                }
-            }
-
-            if (!collides) {
-                horizontalVelocity = speed;
-            } else {
-                horizontalVelocity = 0;
-            }
-        } else {
-            horizontalVelocity = 0;
-        }
-
-        x += horizontalVelocity;
-
-        float acceleration = 9.8f / 5;
-        verticalVelocity += acceleration;
-
-        List<Collidable> actualCollisions = new ArrayList<>();
-
-            for (Collidable collision : collisions) {
-                CollisionHit collisionHit = collision.collidesWith(x, (int) (y + verticalVelocity), width, height);
-                if (collisionHit != null) {
-                    CollisionPlace collisionPlace = collisionHit.getCollisionPlace();
-                    if (collisionPlace == CollisionPlace.BOTTOM || collisionPlace == CollisionPlace.BOTTOM_LEFT || collisionPlace == CollisionPlace.BOTTOM_RIGHT) {
-                        actualCollisions.add(collision);
-                        verticalVelocity = 10;
-
-                        y = ((SquareObject) collision).getBoundsY2();
-                    } else if (collisionPlace == CollisionPlace.TOP || collisionPlace == CollisionPlace.TOP_LEFT || collisionPlace == CollisionPlace.TOP_RIGHT) {
-                        jumpCount = 0;
-                        actualCollisions.add(collision);
-                        verticalVelocity = 0;
-
-                        y = ((SquareObject) collision).getBoundsY1() - height;
-                    }
-                }
-            }
-
-
-        if (actualCollisions.size() == 0) {
-            y += verticalVelocity;
-        }
+        updateHorizontalMovement();
+        updateVerticalMovement();
 
         snowballs.forEach(Snowball::update);
     }
@@ -202,15 +238,15 @@ public class PlayerController implements Updatable, Drawable {
     }
 
     private void throwSnowball() {
-        Snowball snowball = new Snowball(x, y, direction, collisions);
+        Snowball snowball = new Snowball(x, y, direction, collidables);
         snowballs.add(snowball);
     }
 
-    KeyListener getKeyListener() {
+    public KeyListener getKeyListener() {
         return keyListener;
     }
 
-    MouseAdapter getMouseAdapter() {
+    public MouseAdapter getMouseAdapter() {
         return mouseAdapter;
     }
 

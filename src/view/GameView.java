@@ -1,17 +1,19 @@
+package view;
+
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyListener;
 import java.awt.event.MouseAdapter;
 import java.io.IOException;
 
-class GameView extends JFrame {
+public class GameView extends JFrame {
 
-    static int width;
-    static int height;
+    public static int width;
+    public static int height;
 
     private JPanel panel;
 
-    GameView() throws IOException {
+    public GameView() throws IOException {
         JPanel panel = new JPanel();
 
         this.panel = panel;
@@ -26,14 +28,13 @@ class GameView extends JFrame {
 
         GameView.width = getWidth();
         GameView.height = getHeight();
-        System.out.println(GameView.width + ", "+ GameView.height);
     }
 
-    void draw(Image image) {
+    public void draw(Image image) {
         panel.getGraphics().drawImage(image, 0, 0, this);
     }
 
-    void setListeners(KeyListener keyListener, MouseAdapter mouseAdapter) {
+    public void setListeners(KeyListener keyListener, MouseAdapter mouseAdapter) {
         addKeyListener(keyListener);
         addMouseListener(mouseAdapter);
         addMouseMotionListener(mouseAdapter);
